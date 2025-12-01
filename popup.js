@@ -73,15 +73,15 @@ async function handleFiles(fileList) {
   loadedFiles = [];
   resetProgress();
 
-  const totalHtml = htmlFiles.length;
+  const totalHtmlCount = htmlFiles.length;
 
-  for (let i = 0; i < totalHtml; i++) {
+  for (let i = 0; i < totalHtmlCount; i++) {
     const file = htmlFiles[i];
     const text = await file.text();
     loadedFiles.push({ name: file.name, content: text });
 
     // 진행률 업데이트
-    const percent = Math.round(((i + 1) / totalHtml) * 100);
+    const percent = Math.round(((i + 1) / totalHtmlCount) * 100);
     setProgress(percent);
   }
 
