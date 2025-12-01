@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "Tistory Auto Poster",
+  "version": "1.0.0",
+  "description": "HTML 파일 리스트를 이용해 티스토리 블로그에 자동으로 글을 발행하는 확장 프로그램입니다.",
+  "permissions": [
+    "storage",
+    "scripting",
+    "activeTab",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://www.tistory.com/*",
+    "https://*.tistory.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Tistory Auto Poster"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.tistory.com/*",
+        "https://*.tistory.com/*"
+      ],
+      "js": ["contentScript.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

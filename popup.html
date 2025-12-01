@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>Tistory Auto Poster</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 12px;
+      width: 360px;
+      background: #f7f7fb;
+      color: #222;
+    }
+    h1 {
+      font-size: 18px;
+      margin: 0 0 4px 0;
+    }
+    .subtitle {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 12px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+      margin-bottom: 10px;
+    }
+    .card-title {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .file-input {
+      width: 100%;
+      margin: 6px 0;
+    }
+    .file-list {
+      max-height: 120px;
+      overflow-y: auto;
+      border: 1px solid #e0e0e5;
+      border-radius: 8px;
+      padding: 6px;
+      font-size: 12px;
+      background: #fafafa;
+    }
+    .file-item {
+      padding: 2px 0;
+      border-bottom: 1px dashed #eee;
+    }
+    .file-item:last-child {
+      border-bottom: none;
+    }
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    button {
+      flex: 1;
+      border: none;
+      border-radius: 8px;
+      padding: 8px;
+      font-size: 13px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .btn-start {
+      background: #1d3fd3;
+      color: #fff;
+    }
+    .btn-start:active {
+      transform: translateY(1px);
+    }
+    .status {
+      font-size: 11px;
+      margin-top: 4px;
+      color: #555;
+    }
+    .status.error {
+      color: #d32f2f;
+    }
+    .status.success {
+      color: #2e7d32;
+    }
+    .hint {
+      font-size: 10px;
+      color: #777;
+      margin-top: 6px;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  <h1>Tistory Auto Poster</h1>
+  <div class="subtitle">
+    HTML 파일 리스트를 업로드하면, 현재 로그인된 티스토리 블로그에 순차적으로 자동 발행합니다.
+  </div>
+
+  <div class="card">
+    <div class="card-title">1. HTML 파일 리스트 업로드</div>
+    <input id="fileInput" class="file-input" type="file" accept=".html,.htm" multiple>
+    <div id="fileList" class="file-list">
+      HTML 파일을 선택하세요.
+    </div>
+    <div class="btn-row">
+      <button id="startBtn" class="btn-start">자동 포스팅 시작</button>
+    </div>
+    <div id="statusMsg" class="status"></div>
+    <div class="hint">
+      - 티스토리에 <b>로그인</b> 후, 글쓰기 화면 또는 메인 화면에서 시작하세요.<br>
+      - 오류 발생 시 작업이 중단되고, 다시 시작하면 <b>처음 파일부터 재실행</b>됩니다.
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
