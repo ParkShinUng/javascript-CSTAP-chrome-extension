@@ -10,6 +10,20 @@ const startBtn      = document.getElementById('startBtn');
 const statusMsg     = document.getElementById('statusMsg');
 const progressInner = document.getElementById('progressInner');
 
+function resetAllState() {
+  loadedFiles = [];
+  resetProgress();
+  renderFileList(); // "HTML 파일을 선택하세요." 상태로 돌아감
+
+  chrome.storage.local.set({
+    tistoryAutoPosterFiles: [],
+    tistoryAutoPosterSession: {
+      isRunning: false,
+      currentIndex: 0
+    }
+  });
+}
+
 function setStatus(message, type = '') {
   statusMsg.textContent = message;
   statusMsg.className = 'status ' + type;
@@ -55,11 +69,13 @@ async function handleFiles(fileList) {
   const { htmlFiles, invalidCount, total } = filterHtmlFiles(fileList);
 
   if (total === 0) {
+    resetAllState();
     setStatus('선택된 파일이 없습니다. HTML 파일을 선택해주세요.', 'error');
     return;
   }
 
   if (htmlFiles.length === 0) {
+    resetAllState();
     setStatus('HTML(.html, .htm) 확장자의 파일만 업로드할 수 있습니다.', 'error');
     return;
   }
@@ -174,6 +190,7 @@ startBtn.addEventListener('click', () => {
 /* ---------- background에서 오는 에러/상태 메시지 ---------- */
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'POSTING_ERROR') {
+    resetAllState();
     setStatus('오류로 인해 작업이 중단되었습니다: ' + (msg.message || ''), 'error');
   }
   if (msg.type === 'POSTING_DONE') {

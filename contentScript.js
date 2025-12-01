@@ -102,9 +102,7 @@ async function openNewPostFromHome() {
 
     if (!newPostBtn) {
       const clicked = clickByText(["a", "button"], "글쓰기");
-      if (!clicked) {
-        throw new Error("글쓰기 버튼을 찾을 수 없습니다. 홈 페이지 UI를 확인해주세요.");
-      }
+      if (!clicked) throw new Error("글쓰기 버튼을 찾을 수 없습니다. 홈 페이지 UI를 확인해주세요.");
       console.log("[Tistory Auto Poster] 텍스트 기반으로 글쓰기 버튼 클릭 완료.");
     } else {
       newPostBtn.click();
@@ -141,35 +139,29 @@ async function runPostingForFile(fileIndex, file) {
      *********************/
     console.log("[Tistory Auto Poster] HTML 블럭 버튼을 찾는 중...");
 
-    const moreBtn = document.querySelector("button#more-plugin-btn-open");
-    if (!moreBtn) {
-      throw new Error("HTML 블럭을 여는 버튼(더보기)을 찾을 수 없습니다.");
-    }
+    const moreBtn = await waitFor('button#more-plugin-btn-open');
+    if (!moreBtn) throw new Error("HTML 블럭을 여는 버튼(더보기)을 찾을 수 없습니다.");
     moreBtn.click();
+    await sleep(500);
 
-    const htmlBlockBtn = await waitFor("div#plugin-html-block", 3000);
-    if (!htmlBlockBtn) {
-      throw new Error("HTML 블럭 플러그인 버튼을 찾을 수 없습니다.");
-    }
+    const htmlBlockBtn = await waitFor("div#plugin-html-block");
+    if (!htmlBlockBtn) throw new Error("HTML 블럭 플러그인 버튼을 찾을 수 없습니다.");
     htmlBlockBtn.click();
+    await sleep(500);
 
-    const htmlTextArea = await waitFor("div.mce-codeblock-content div.CodeMirror textarea", 3000);
-    if (!htmlTextArea) {
-      throw new Error("HTML 블럭 입력 영역을 찾을 수 없습니다.");
-    }
-    console.log("[Tistory Auto Poster] HTML 블럭에 파일 전체 내용을 입력합니다.");
-    htmlTextArea.value = file.content;
-    console.log(file);
+    const htmlTextArea = await waitFor('.CodeMirror textarea', 3000);
+    if (!htmlTextArea) throw new Error("HTML 블럭 입력 영역을 찾을 수 없습니다.");
+    htmlTextArea.setValue = file.content;
     htmlTextArea.dispatchEvent(new Event("input", { bubbles: true }));
-    htmlTextArea.dispatchEvent(new Event("change", { bubbles: true }));
-    await new Promise(requestAnimationFrame);
-    await sleep(1000);
+
+    // const cmContainer = document.querySelector('.CodeMirror');
+    // cmContainer.CodeMirror.setValue = file.content;
+    await sleep(200);
+
+    return;
 
     const submitBtn = await waitFor("div.mce-codeblock-btn-submit button");
-    if (!submitBtn) {
-      throw new Error("확인 버튼을 찾을 수 없습니다.");
-    }
-
+    if (!submitBtn) throw new Error("확인 버튼을 찾을 수 없습니다.");
     submitBtn.click();
 
     /*********************
@@ -184,9 +176,7 @@ async function runPostingForFile(fileIndex, file) {
     
     // 제목 입력 필드
     const titleInput = await waitFor("textarea#post-title-inp", 3000).catch(() => null);
-    if (!titleInput) {
-      throw new Error("제목 입력 필드를 찾을 수 없습니다.");
-    }
+    if (!titleInput) throw new Error("제목 입력 필드를 찾을 수 없습니다.");
 
     // 제목 입력
     titleInput.value = title;
@@ -196,9 +186,7 @@ async function runPostingForFile(fileIndex, file) {
 
     // // tinymce 인스턴스 (에디터)
     // const editorInstance = window.tinymce && window.tinymce.get("editor-tistory");
-    // if (!editorInstance) {
-    //   throw new Error("본문 입력 영역(tinymce 에디터)을 찾을 수 없습니다.");
-    // }
+    // if (!editorInstance) throw new Error("본문 입력 영역(tinymce 에디터)을 찾을 수 없습니다.");
 
     // // 본문 입력 (기존 내용을 덮어씀)
     // const currentContent = editorInstance.getContent() || "";
