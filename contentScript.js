@@ -84,49 +84,60 @@ function sendError(err) {
 
 
 /*************************
- * 티스토리 포스팅 로직
+ * 1) 홈/관리 페이지: 새 글쓰기 탭 열기
+ *************************/
+
+async function openNewPostFromHome() {
+  try {
+    console.log("[Tistory Auto Poster] 홈/관리 페이지에서 글쓰기 버튼 클릭 시도.");
+
+    let newPostBtn = null;
+
+    try {
+      // 티스토리 상단 탭 기반 글쓰기 버튼 (필요하면 여기 셀렉터 조정)
+      newPostBtn = await waitFor('a.link_tab[href$="/manage/newpost"]', 5000);
+    } catch (e) {
+      console.warn("[Tistory Auto Poster] a.link_tab[href$=\"/manage/newpost\"] 버튼을 찾지 못했습니다. 텍스트 기반으로 재시도.", e);
+    }
+
+    if (!newPostBtn) {
+      const clicked = clickByText(["a", "button"], "글쓰기");
+      if (!clicked) {
+        throw new Error("글쓰기 버튼을 찾을 수 없습니다. 홈 페이지 UI를 확인해주세요.");
+      }
+      console.log("[Tistory Auto Poster] 텍스트 기반으로 글쓰기 버튼 클릭 완료.");
+    } else {
+      newPostBtn.click();
+      console.log("[Tistory Auto Poster] 링크 기반 글쓰기 버튼 클릭 완료.");
+    }
+
+    // 여기서는 새 탭이 열리기만 하면 됨. 이후 작업은 background + 새 탭에서 처리.
+  } catch (err) {
+    console.error("[Tistory Auto Poster] openNewPostFromHome Error:", err);
+    sendError(err);
+  }
+}
+
+
+/*************************
+ * 2) 글쓰기 탭: 실제 포스팅 로직
  *************************/
 
 async function runPostingForFile(fileIndex, file) {
   try {
-    console.log('[Tistory Auto Poster] Start posting for file:', file?.name);
+    console.log("[Tistory Auto Poster] 글쓰기 탭에서 포스팅 시작. fileIndex =", fileIndex, "파일명 =", file && file.name);
 
     if (!file || !file.content) {
       throw new Error('파일 내용이 비어 있습니다.');
     }
 
-    /*********************
-     * 1. 새 글쓰기 페이지로 이동
-     *********************/
+    // URL 확인
     if (!/\/manage\/newpost/.test(location.href)) {
-      console.log("[Tistory Auto Poster] 새 글쓰기 버튼을 찾는 중...");
-
-      let newPostBtn = null;
-
-      try {
-        newPostBtn = await waitFor('a.link_tab[href$="/manage/newpost"]', 3000);
-      } catch (e) {
-        console.warn("[Tistory Auto Poster] 지정된 a.link_tab[href$=\"/manage/newpost\"] 셀렉터로 버튼을 찾지 못했습니다. 텍스트 기반으로 재시도합니다.", e);
-      }
-
-      if (!newPostBtn) {
-        const clicked = clickByText(["a", "button"], "글쓰기");
-        if (!clicked) {
-          throw new Error("글쓰기 버튼을 찾을 수 없습니다.");
-        }
-        console.log("[Tistory Auto Poster] 글쓰기 버튼을 텍스트 기반으로 클릭했습니다.");
-      } else {
-        console.log("[Tistory Auto Poster] 글쓰기 버튼을 클릭합니다.");
-        newPostBtn.click();
-      }
-
-      await sleep(3000); // 글쓰기 화면 로딩 대기
-    } else {
-      console.log("[Tistory Auto Poster] 이미 /manage/newpost 페이지에 있습니다. 글쓰기 버튼 클릭은 생략합니다.");
+      throw new Error("현재 탭은 /manage/newpost 글쓰기 페이지가 아닙니다.");
     }
 
     /*********************
-     * 2. HTML Block 입력 (파일 전체 HTML)
+     *  1. HTML Block 입력
      *********************/
     console.log("[Tistory Auto Poster] HTML 블럭 버튼을 찾는 중...");
 
@@ -143,59 +154,60 @@ async function runPostingForFile(fileIndex, file) {
     htmlBlockBtn.click();
 
     const htmlTextArea = await waitFor("div.mce-codeblock-content div.CodeMirror textarea", 3000);
-    const submitBtn = document.querySelector("div.mce-codeblock-btn-submit button");
+    if (!htmlTextArea) {
+      throw new Error("HTML 블럭 입력 영역을 찾을 수 없습니다.");
+    }
+    console.log("[Tistory Auto Poster] HTML 블럭에 파일 전체 내용을 입력합니다.");
+    htmlTextArea.value = file;
+    console.log(file);
+    htmlTextArea.dispatchEvent(new Event("input", { bubbles: true }));
+    await new Promise(requestAnimationFrame);   // CodeMirror 내부 동기화를 위해 약간의 프레임 대기
+    await new Promise(requestAnimationFrame);
+    await sleep(1000);
 
-    if (!htmlTextArea || !submitBtn) {
-      throw new Error("HTML 블럭 입력 영역 또는 완료 버튼을 찾을 수 없습니다.");
+    const submitBtn = await waitFor("div.mce-codeblock-btn-submit button");
+    if (!submitBtn) {
+      throw new Error("확인 버튼을 찾을 수 없습니다.");
     }
 
-    console.log("[Tistory Auto Poster] HTML 블럭에 파일 전체 내용을 입력합니다.");
-
-    htmlTextArea.value = file.content;
-    htmlTextArea.dispatchEvent(new Event("input", { bubbles: true }));
-
-    // CodeMirror 내부 동기화를 위해 약간의 프레임 대기
-    await new Promise(requestAnimationFrame);
-    await new Promise(requestAnimationFrame);
-
     submitBtn.click();
-      
 
     /*********************
-     * 3. 글쓰기 에디터: 제목 + 본문 입력
+     * 2. 제목 + 본문 입력
      *********************/
     console.log("[Tistory Auto Poster] 제목/본문 입력을 시작합니다.");
+    
+    // HTML 내용 파싱 (첫 번째 h1 → 제목, 나머지 → 본문)
+    const { title, bodyHtml } = splitHtmlToTitleAndBody(file.content);
+    console.log("[Tistory Auto Poster] 추출된 제목:", title);
 
+    
     // 제목 입력 필드
     const titleInput = await waitFor("textarea#post-title-inp", 3000).catch(() => null);
     if (!titleInput) {
       throw new Error("제목 입력 필드를 찾을 수 없습니다.");
     }
 
-    // tinymce 인스턴스 (에디터)
-    const editorInstance = window.tinymce && window.tinymce.get("editor-tistory");
-    if (!editorInstance) {
-      throw new Error("본문 입력 영역(tinymce 에디터)을 찾을 수 없습니다.");
-    }
-
-    // HTML 내용 파싱 (첫 번째 h1 → 제목, 나머지 → 본문)
-    const { title, bodyHtml } = splitHtmlToTitleAndBody(file.content);
-
-    console.log("[Tistory Auto Poster] 추출된 제목:", title);
-
     // 제목 입력
     titleInput.value = title;
     titleInput.dispatchEvent(new Event("input", { bubbles: true }));
     titleInput.dispatchEvent(new Event("change", { bubbles: true }));
+    await sleep(500);
 
-    // 본문 입력 (기존 내용을 덮어씀)
-    const currentContent = editorInstance.getContent() || "";
-    editorInstance.setContent(currentContent + bodyHtml);
-    editorInstance.fire("change");
-    await sleep(200);
+    // // tinymce 인스턴스 (에디터)
+    // const editorInstance = window.tinymce && window.tinymce.get("editor-tistory");
+    // if (!editorInstance) {
+    //   throw new Error("본문 입력 영역(tinymce 에디터)을 찾을 수 없습니다.");
+    // }
+
+    // // 본문 입력 (기존 내용을 덮어씀)
+    // const currentContent = editorInstance.getContent() || "";
+    // editorInstance.setContent(currentContent + bodyHtml);
+    // editorInstance.fire("change");
+    // await sleep(500);
 
     /*********************
-     * 4. 발행 레이어 열기
+     * 3. 발행 레이어 열기
      *********************/
     console.log("[Tistory Auto Poster] 발행 레이어를 여는 버튼을 찾는 중...");
 
@@ -206,7 +218,7 @@ async function runPostingForFile(fileIndex, file) {
     completeBtn.click();
 
     /*********************
-     * 5. 공개 라디오 + 발행 버튼 클릭
+     * 4. 공개 라디오 + 발행 버튼 클릭
      *********************/
     console.log("[Tistory Auto Poster] 공개 설정 및 발행 버튼을 찾는 중...");
 
@@ -226,20 +238,19 @@ async function runPostingForFile(fileIndex, file) {
     published.click();
     console.log("[Tistory Auto Poster] 발행 버튼 클릭 완료. 서버 응답 대기...");
 
-    // 발행 후 서버 처리 시간 고려
     await sleep(3000);
 
     /*********************
-     * 6. 한 파일 작업 완료 → background에 알림
+     * 5. 완료 알림
      *********************/
     chrome.runtime.sendMessage({
       type: "FILE_POSTED",
       fileIndex
     });
 
-    console.log("[Tistory Auto Poster] 파일 처리 완료, FILE_POSTED 전송:", fileIndex);
+     console.log("[Tistory Auto Poster] FILE_POSTED 전송 완료. fileIndex =", fileIndex);
   } catch (err) {
-    console.error("[Tistory Auto Poster] Error:", err);
+    console.error("[Tistory Auto Poster] runPostingForFile Error:", err);
     sendError(err);
   }
 }
@@ -247,10 +258,13 @@ async function runPostingForFile(fileIndex, file) {
 /*************************
  * 메시지 리스너
  *************************/
-
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg.type === 'RUN_POSTING_FOR_FILE') {
-    // background에서 { fileIndex, file } 전달
+  if (msg.type === "OPEN_NEW_POST") {
+    // 홈/관리 페이지에서 새 글쓰기 탭 열기
+    openNewPostFromHome();
+    sendResponse({ ok: true });
+  } else if (msg.type === "RUN_POSTING_FOR_FILE") {
+    // 글쓰기 탭에서 실제 포스팅 로직 실행
     runPostingForFile(msg.fileIndex, msg.file);
     sendResponse({ ok: true });
   }
