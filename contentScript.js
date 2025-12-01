@@ -158,10 +158,10 @@ async function runPostingForFile(fileIndex, file) {
       throw new Error("HTML 블럭 입력 영역을 찾을 수 없습니다.");
     }
     console.log("[Tistory Auto Poster] HTML 블럭에 파일 전체 내용을 입력합니다.");
-    htmlTextArea.value = file;
+    htmlTextArea.value = file.content;
     console.log(file);
     htmlTextArea.dispatchEvent(new Event("input", { bubbles: true }));
-    await new Promise(requestAnimationFrame);   // CodeMirror 내부 동기화를 위해 약간의 프레임 대기
+    htmlTextArea.dispatchEvent(new Event("change", { bubbles: true }));
     await new Promise(requestAnimationFrame);
     await sleep(1000);
 
