@@ -72,96 +72,72 @@ async function runPostingForFile(fileIndex, file) {
   try {
     console.log('[Tistory Auto Poster] Start posting for file:', file.name);
 
-    // 1) 필요하다면 메인에서 글쓰기 버튼 클릭 (선택)
-    // TODO: 실제 티스토리 구조에 맞게 글쓰기 버튼 셀렉터 조정
-    const url = location.href;
-    if (/tistory\.com\/?$/.test(url) || /tistory\.com\/manage/.test(url)) {
-      const clicked = clickByText(['a', 'button'], '글쓰기');
-      if (!clicked) {
+    const newPostBtn = await waitFor('a.link_tab[href$="/manage/newpost"]');
+    if (!newPostBtn) {
         throw new Error('글쓰기 버튼을 찾을 수 없습니다.');
-      }
-      // 글쓰기 페이지 로딩 대기
-      await new Promise(r => setTimeout(r, 4000));
     }
+    newPostBtn.click();
+    await new Promise(r => setTimeout(r, 3000));
+
+    // HTML Block 입력
+    const moreBtn = document.querySelector('button#more-plugin-btn-open');
+    moreBtn.click();
+    const htmlBlockBtn = await waitFor('div#plugin-html-block', 1000);
+    htmlBlockBtn.click();
+
+    const htmlTextArea = await waitFor('div.mce-codeblock-content div.CodeMirror textarea');
+    const submitBtn = document.querySelector('div.mce-codeblock-btn-submit button');
+
+    htmlTextArea.value = file.content;
+    htmlTextArea.dispatchEvent(new Event('input', { bubbles: true }));
+    
+    await new Promise(r => setTimeout(r, 100));
+
+    submitBtn.click();
 
     // 2) 글쓰기 에디터 화면에서 제목과 본문 입력
-    // TODO: 제목 입력 필드 셀렉터 조정
-    const titleInput =
-      document.querySelector('input[placeholder*="제목"]') ||
-      document.querySelector('input[aria-label*="제목"]') ||
-      document.querySelector('input.title') ||
-      document.querySelector('input.textarea_tit');
-
+    const titleInput = waitFor('textarea#post-title-inp');
     if (!titleInput) {
-      throw new Error('제목 입력 필드를 찾을 수 없습니다.');
+        throw new Error('제목 입력 필드를 찾을 수 없습니다.');
     }
 
-    // TODO: 본문 입력 영역 셀렉터 조정
-    let contentEditable =
-      document.querySelector('[contenteditable="true"]') ||
-      document.querySelector('.editor-content') ||
-      document.querySelector('#kakao-content') ||
-      document.querySelector('.mce-edit-area');
-
-    // 일부 에디터는 iframe 내부에 contenteditable이 있을 수 있음
-    if (!contentEditable) {
-      const iframe = document.querySelector('iframe');
-      if (iframe && iframe.contentDocument) {
-        contentEditable =
-          iframe.contentDocument.querySelector('[contenteditable="true"]') ||
-          iframe.contentDocument.body;
-      }
-    }
-
-    if (!contentEditable) {
-      throw new Error('본문 입력 영역을 찾을 수 없습니다.');
+    const editorInstance = window.tinymice && window.tinymce.get('editor-tistory');
+    if (!editorInstance) {
+        throw new Error('본문 입력 영역을 찾을 수 없습니다.');
     }
 
     // HTML 내용 파싱
     const { title, bodyHtml } = splitHtmlToTitleAndBody(file.content);
 
-    // 제목 입력
-    titleInput.focus();
-    titleInput.value = '';
-    titleInput.dispatchEvent(new Event('input', { bubbles: true }));
+    // 제목, 본문 입력
     titleInput.value = title;
     titleInput.dispatchEvent(new Event('input', { bubbles: true }));
+    
+    editorInstance.setContent(currentContent + bodyHtml);
+    editorInstance.fire('change');
+    await new Promise(r => setTimeout(r, 200));
 
-    // 본문 입력 (HTML로 삽입)
-    if (contentEditable.isContentEditable) {
-      contentEditable.focus();
-      // 깨끗하게 비우기
-      contentEditable.innerHTML = '';
-      // 6, 8 번 요구사항 반영: 첫 줄 제외한 부분을 본문에 HTML로 삽입
-      contentEditable.innerHTML = bodyHtml;
-    } else {
-      // 만약 일반 textarea인 경우
-      contentEditable.value = bodyHtml;
-      contentEditable.dispatchEvent(new Event('input', { bubbles: true }));
-    }
+    const completeBtn = document.querySelector('button#publish-layer-btn');
+    completeBtn.click();
 
-    // 10) 공개 라디오 버튼 클릭
-    // TODO: 티스토리 공개/비공개 영역 구조에 맞게 수정 필요
-    let openRadio = document.querySelector('input[type="radio"][value="0"]'); // 예시
+    // 공개 라디오, 완료/발행 버튼 클릭
+    const openRadio = await waitFor('input#open20');
+    const published = document.querySelector('button#publish-btn');
+
     if (!openRadio) {
-      // 텍스트 기반으로 클릭
-      clickByText(['label', 'span'], '공개');
-    } else {
-      openRadio.click();
+      throw new Error('공개 버튼을 찾을 수 없습니다.');
     }
-
-    // 9, 11) 완료/발행 버튼 클릭 (티스토리 구조에 따라 다를 수 있음)
-    // 보통 '발행', '등록' 텍스트로 된 버튼
-    const published =
-      clickByText(['button', 'a'], '발행') ||
-      clickByText(['button', 'a'], '등록');
-
     if (!published) {
       throw new Error('발행/등록 버튼을 찾을 수 없습니다.');
     }
 
+    openRadio.click();
+    await new Promise(r => setTimeout(r, 200));
+
+    published.click();
+
     // 발행 후 서버 처리 시간 고려
-    await new Promise(r => setTimeout(r, 5000));
+    await new Promise(r => setTimeout(r, 3000));
 
     // 한 파일 작업 완료를 background에 알림
     chrome.runtime.sendMessage({
