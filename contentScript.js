@@ -121,6 +121,34 @@ async function openNewPostFromHome() {
  * 2) 글쓰기 탭: 실제 포스팅 로직
  *************************/
 
+function setCodeMirrorValueSafe(htmlContent) {
+    const scriptContent = `
+        (function() {
+            try {
+                const cmElement = document.querySelector('.mce-codeblock-content .CodeMirror');
+                
+                if (cmElement && cmElement.CodeMirror) {
+                    cmElement.CodeMirror.setValue(\`${htmlContent}\`);
+                    cmElement.CodeMirror.save(); // 변경사항 저장
+                    console.log("✅ [Tistory Auto Poster] CodeMirror API로 값 설정 완료");
+                } else {
+                    console.error("❌ [Tistory Auto Poster] CodeMirror 인스턴스를 찾을 수 없습니다.");
+                }
+            } catch (e) {
+                console.error("❌ [Tistory Auto Poster] 오류 발생:", e);
+            }
+        })();
+    `;
+
+    // 2. script 태그를 생성하여 DOM에 추가합니다. (즉시 실행됨)
+    const script = document.createElement('script');
+    script.textContent = scriptContent;
+    (document.head || document.documentElement).appendChild(script);
+
+    // 3. 실행 후 흔적을 지우기 위해 태그를 제거합니다.
+    script.remove();
+}
+
 async function runPostingForFile(fileIndex, file) {
   try {
     console.log("[Tistory Auto Poster] 글쓰기 탭에서 포스팅 시작. fileIndex =", fileIndex, "파일명 =", file && file.name);
@@ -128,6 +156,8 @@ async function runPostingForFile(fileIndex, file) {
     if (!file || !file.content) {
       throw new Error('파일 내용이 비어 있습니다.');
     }
+
+    const htmlContent = file.content;
 
     // URL 확인
     if (!/\/manage\/newpost/.test(location.href)) {
@@ -149,15 +179,67 @@ async function runPostingForFile(fileIndex, file) {
     htmlBlockBtn.click();
     await sleep(500);
 
-    const htmlTextArea = await waitFor('.CodeMirror textarea', 3000);
-    if (!htmlTextArea) throw new Error("HTML 블럭 입력 영역을 찾을 수 없습니다.");
-    htmlTextArea.setValue = file.content;
-    htmlTextArea.dispatchEvent(new Event("input", { bubbles: true }));
+    // const htmlTextArea = await waitFor('.CodeMirror textarea', 3000);
+    // if (!htmlTextArea) throw new Error("HTML 블럭 입력 영역을 찾을 수 없습니다.");
+    // htmlTextArea.setValue = htmlContent;
+    // htmlTextArea.dispatchEvent(new Event("input", { bubbles: true }));
 
     // const cmContainer = document.querySelector('.CodeMirror');
-    // cmContainer.CodeMirror.setValue = file.content;
-    await sleep(200);
+    // cmContainer.CodeMirror.setValue = htmlContent;
 
+    // 1.
+    const container = await waitFor('.mce-codeblock-content', 3000);
+    if (container) {
+        const htmlTextArea = container.querySelector('.CodeMirror textarea[tabindex="0"]', 3000);
+        if (!htmlTextArea) throw new Error("HTML 블럭 입력 영역을 찾을 수 없습니다.");
+        htmlTextArea.value = htmlContent;
+        htmlTextArea.dispatchEvent(new Event("input", { bubbles: true }));
+        htmlTextArea.dispatchEvent(new Event("change", { bubbles: true }));
+        htmlTextArea.focus();
+    } else {
+        console.error("❌ .mce-codeblock-content 컨테이너를 찾을 수 없습니다.");
+    }
+
+
+    // 2.
+    const cmElement = await waitFor('.mce-codeblock-content .CodeMirror', 3000);
+    if (cmElement && cmElement.CodeMirror) {
+        const cmInstance = cmElement.CodeMirror;
+        cmInstance.setValue = htmlContent;
+        cmInstance.save();
+    }
+
+    // 3.
+    const mceCodeblock = await waitFor('div.mce-codeblock-content', 3000);
+    await sleep(100); // DOM이 안정화되도록 잠시 대기
+
+    if (mceCodeblock) {
+        const codeMirror = mceCodeblock.querySelector('div.CodeMirror');
+        
+        if (codeMirror) {
+            const htmlTextArea = codeMirror.querySelector('textarea[tabindex="0"]');
+
+            if (htmlTextArea) {
+                htmlTextArea.value = htmlContent;
+                htmlTextArea.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(500);
+                
+            } else {
+                console.error("오류: CodeMirror 내부에서 textarea 요소를 찾을 수 없습니다.");
+            }
+        } else {
+            console.error("오류: div.mce-codeblock-content 내부에서 div.CodeMirror 요소를 찾을 수 없습니다.");
+        }
+    } else {
+        console.error("오류: div.mce-codeblock-content 요소를 찾을 수 없습니다.");
+    }
+
+    // 4.
+    const htmlTextArea = await waitFor('div.mce-codeblock-content div.CodeMirror textarea', 2000);
+    if (!htmlTextArea) throw new Error('HTML textarea 을 찾을 수 없습니다.');
+    setCodeMirrorValueSafe(htmlContent); // 방법 1의 함수 사용
+    
+    await sleep(500);
     return;
 
     const submitBtn = await waitFor("div.mce-codeblock-btn-submit button");
@@ -170,7 +252,7 @@ async function runPostingForFile(fileIndex, file) {
     console.log("[Tistory Auto Poster] 제목/본문 입력을 시작합니다.");
     
     // HTML 내용 파싱 (첫 번째 h1 → 제목, 나머지 → 본문)
-    const { title, bodyHtml } = splitHtmlToTitleAndBody(file.content);
+    const { title, bodyHtml } = splitHtmlToTitleAndBody(htmlContent);
     console.log("[Tistory Auto Poster] 추출된 제목:", title);
 
     
@@ -185,7 +267,9 @@ async function runPostingForFile(fileIndex, file) {
     await sleep(500);
 
     // // tinymce 인스턴스 (에디터)
-    // const editorInstance = window.tinymce && window.tinymce.get("editor-tistory");
+    // TinyMCE 인스턴스 목록을 확인 : window.tinymce.editors(console 입력)
+    // const editorInstance = window.tinymce && window.tinymce.get('editor-tistory');
+    // const editorInstance = window.tinymce && window.tinymce.get('.Editor-inner');
     // if (!editorInstance) throw new Error("본문 입력 영역(tinymce 에디터)을 찾을 수 없습니다.");
 
     // // 본문 입력 (기존 내용을 덮어씀)
