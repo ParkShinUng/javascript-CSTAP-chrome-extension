@@ -91,25 +91,10 @@ async function openNewPostFromHome() {
   try {
     console.log("[Tistory Auto Poster] 홈/관리 페이지에서 글쓰기 버튼 클릭 시도.");
 
-    let newPostBtn = null;
+    const href = document.querySelector('a.link_tab[href$="/manage/newpost"]').href;
+    location.href = href;
 
-    try {
-      // 티스토리 상단 탭 기반 글쓰기 버튼 (필요하면 여기 셀렉터 조정)
-      newPostBtn = await waitFor('a.link_tab[href$="/manage/newpost"]', 5000);
-    } catch (e) {
-      console.warn("[Tistory Auto Poster] a.link_tab[href$=\"/manage/newpost\"] 버튼을 찾지 못했습니다. 텍스트 기반으로 재시도.", e);
-    }
-
-    if (!newPostBtn) {
-      const clicked = clickByText(["a", "button"], "글쓰기");
-      if (!clicked) throw new Error("글쓰기 버튼을 찾을 수 없습니다. 홈 페이지 UI를 확인해주세요.");
-      console.log("[Tistory Auto Poster] 텍스트 기반으로 글쓰기 버튼 클릭 완료.");
-    } else {
-      newPostBtn.click();
-      console.log("[Tistory Auto Poster] 링크 기반 글쓰기 버튼 클릭 완료.");
-    }
-
-    // 여기서는 새 탭이 열리기만 하면 됨. 이후 작업은 background + 새 탭에서 처리.
+  // 여기서는 새 탭이 열리기만 하면 됨. 이후 작업은 background + 새 탭에서 처리.
   } catch (err) {
     console.error("[Tistory Auto Poster] openNewPostFromHome Error:", err);
     sendError(err);
@@ -215,7 +200,9 @@ async function runPostingForFile(fileIndex, file) {
     await sleep(200);
 
     console.log("[Tistory Auto Poster] 발행 버튼 클릭 완료. 서버 응답 대기...");
-    await sleep(3000);
+    await sleep(5000);
+
+    location.href = 'https://www.tistory.com';
 
     /*********************
      * 5. 완료 알림
@@ -225,8 +212,7 @@ async function runPostingForFile(fileIndex, file) {
       fileIndex
     });
 
-     console.log("[Tistory Auto Poster] FILE_POSTED 전송 완료. fileIndex =", fileIndex);
-    window.close();
+    console.log("[Tistory Auto Poster] FILE_POSTED 전송 완료. fileIndex =", fileIndex);
   } catch (err) {
     console.error("[Tistory Auto Poster] runPostingForFile Error:", err);
     sendError(err);

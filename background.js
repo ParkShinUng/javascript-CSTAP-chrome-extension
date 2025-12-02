@@ -103,23 +103,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
     // 글쓰기 탭에서 "이 파일 포스팅 끝났다" 알림
     else if (msg.type === "FILE_POSTED") {
-      const editorTabId = sender.tab && sender.tab.id;
-      console.log("[BG] FILE_POSTED 수신. fileIndex =", msg.fileIndex, "editorTabId =", editorTabId);
+      console.log("[BG] FILE_POSTED 수신.");
 
       const { files, session } = await loadFilesAndSession();
 
       // 현재 인덱스 증가
       session.currentIndex = (msg.fileIndex || session.currentIndex) + 1;
       await saveSession(session);
-
-      // 글쓰기 탭 닫기
-      if (editorTabId) {
-        try {
-          await chrome.tabs.remove(editorTabId);
-        } catch (e) {
-          console.warn("[BG] editorTab 제거 중 오류:", e);
-        }
-      }
 
       // 다음 포스트 시작
       await startNextPost();
