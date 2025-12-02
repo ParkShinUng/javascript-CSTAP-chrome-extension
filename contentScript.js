@@ -121,34 +121,6 @@ async function openNewPostFromHome() {
  * 2) 글쓰기 탭: 실제 포스팅 로직
  *************************/
 
-function setCodeMirrorValueSafe(htmlContent) {
-    const scriptContent = `
-        (function() {
-            try {
-                const cmElement = document.querySelector('.mce-codeblock-content .CodeMirror');
-                
-                if (cmElement && cmElement.CodeMirror) {
-                    cmElement.CodeMirror.setValue(\`${htmlContent}\`);
-                    cmElement.CodeMirror.save(); // 변경사항 저장
-                    console.log("✅ [Tistory Auto Poster] CodeMirror API로 값 설정 완료");
-                } else {
-                    console.error("❌ [Tistory Auto Poster] CodeMirror 인스턴스를 찾을 수 없습니다.");
-                }
-            } catch (e) {
-                console.error("❌ [Tistory Auto Poster] 오류 발생:", e);
-            }
-        })();
-    `;
-
-    // 2. script 태그를 생성하여 DOM에 추가합니다. (즉시 실행됨)
-    const script = document.createElement('script');
-    script.textContent = scriptContent;
-    (document.head || document.documentElement).appendChild(script);
-
-    // 3. 실행 후 흔적을 지우기 위해 태그를 제거합니다.
-    script.remove();
-}
-
 async function runPostingForFile(fileIndex, file) {
   try {
     console.log("[Tistory Auto Poster] 글쓰기 탭에서 포스팅 시작. fileIndex =", fileIndex, "파일명 =", file && file.name);
@@ -164,152 +136,85 @@ async function runPostingForFile(fileIndex, file) {
       throw new Error("현재 탭은 /manage/newpost 글쓰기 페이지가 아닙니다.");
     }
 
-    /*********************
-     *  1. HTML Block 입력
-     *********************/
+    // HTML Block 입력
     console.log("[Tistory Auto Poster] HTML 블럭 버튼을 찾는 중...");
 
-    const moreBtn = await waitFor('button#more-plugin-btn-open');
+    const moreBtn = await waitFor('button#more-plugin-btn-open', 3000).catch(() => null);
     if (!moreBtn) throw new Error("HTML 블럭을 여는 버튼(더보기)을 찾을 수 없습니다.");
     moreBtn.click();
-    await sleep(500);
+    await sleep(300);
 
-    const htmlBlockBtn = await waitFor("div#plugin-html-block");
+    const htmlBlockBtn = await waitFor("div#plugin-html-block", 3000).catch(() => null);
     if (!htmlBlockBtn) throw new Error("HTML 블럭 플러그인 버튼을 찾을 수 없습니다.");
     htmlBlockBtn.click();
-    await sleep(500);
-
-    // const htmlTextArea = await waitFor('.CodeMirror textarea', 3000);
-    // if (!htmlTextArea) throw new Error("HTML 블럭 입력 영역을 찾을 수 없습니다.");
-    // htmlTextArea.setValue = htmlContent;
-    // htmlTextArea.dispatchEvent(new Event("input", { bubbles: true }));
-
-    // const cmContainer = document.querySelector('.CodeMirror');
-    // cmContainer.CodeMirror.setValue = htmlContent;
+    await sleep(300);
 
     // 1.
-    const container = await waitFor('.mce-codeblock-content', 3000);
-    if (container) {
-        const htmlTextArea = container.querySelector('.CodeMirror textarea[tabindex="0"]', 3000);
-        if (!htmlTextArea) throw new Error("HTML 블럭 입력 영역을 찾을 수 없습니다.");
-        htmlTextArea.value = htmlContent;
-        htmlTextArea.dispatchEvent(new Event("input", { bubbles: true }));
-        htmlTextArea.dispatchEvent(new Event("change", { bubbles: true }));
-        htmlTextArea.focus();
-    } else {
-        console.error("❌ .mce-codeblock-content 컨테이너를 찾을 수 없습니다.");
+    const container = await waitFor('.mce-codeblock-content', 3000).catch(() => null);
+    if (!container) {
+      throw new Error(".mce-codeblock-content 영역을 찾을 수 없습니다.");
     }
-
-
-    // 2.
-    const cmElement = await waitFor('.mce-codeblock-content .CodeMirror', 3000);
-    if (cmElement && cmElement.CodeMirror) {
-        const cmInstance = cmElement.CodeMirror;
-        cmInstance.setValue = htmlContent;
-        cmInstance.save();
+    const htmlTextArea = container.querySelector('.CodeMirror textarea[tabindex="0"]');
+    if (!htmlTextArea) {
+      throw new Error("HTML 블럭 입력 영역을 찾을 수 없습니다.");
     }
+    htmlTextArea.value = htmlContent;
+    htmlTextArea.dispatchEvent(new Event("input", { bubbles: true }));
+    htmlTextArea.dispatchEvent(new Event("change", { bubbles: true }));
+    await sleep(300);
 
-    // 3.
-    const mceCodeblock = await waitFor('div.mce-codeblock-content', 3000);
-    await sleep(100); // DOM이 안정화되도록 잠시 대기
-
-    if (mceCodeblock) {
-        const codeMirror = mceCodeblock.querySelector('div.CodeMirror');
-        
-        if (codeMirror) {
-            const htmlTextArea = codeMirror.querySelector('textarea[tabindex="0"]');
-
-            if (htmlTextArea) {
-                htmlTextArea.value = htmlContent;
-                htmlTextArea.dispatchEvent(new Event('input', { bubbles: true }));
-                await sleep(500);
-                
-            } else {
-                console.error("오류: CodeMirror 내부에서 textarea 요소를 찾을 수 없습니다.");
-            }
-        } else {
-            console.error("오류: div.mce-codeblock-content 내부에서 div.CodeMirror 요소를 찾을 수 없습니다.");
-        }
-    } else {
-        console.error("오류: div.mce-codeblock-content 요소를 찾을 수 없습니다.");
-    }
-
-    // 4.
-    const htmlTextArea = await waitFor('div.mce-codeblock-content div.CodeMirror textarea', 2000);
-    if (!htmlTextArea) throw new Error('HTML textarea 을 찾을 수 없습니다.');
-    setCodeMirrorValueSafe(htmlContent); // 방법 1의 함수 사용
-    
-    await sleep(500);
-    return;
-
-    const submitBtn = await waitFor("div.mce-codeblock-btn-submit button");
-    if (!submitBtn) throw new Error("확인 버튼을 찾을 수 없습니다.");
+    const submitBtn = await waitFor("div.mce-codeblock-btn-submit button", 3000).catch(() => null);
+    if (!submitBtn) throw new Error("HTML 블럭 확인 버튼을 찾을 수 없습니다.");
     submitBtn.click();
+    await sleep(300);
 
-    /*********************
-     * 2. 제목 + 본문 입력
-     *********************/
     console.log("[Tistory Auto Poster] 제목/본문 입력을 시작합니다.");
     
     // HTML 내용 파싱 (첫 번째 h1 → 제목, 나머지 → 본문)
     const { title, bodyHtml } = splitHtmlToTitleAndBody(htmlContent);
     console.log("[Tistory Auto Poster] 추출된 제목:", title);
 
-    
     // 제목 입력 필드
     const titleInput = await waitFor("textarea#post-title-inp", 3000).catch(() => null);
     if (!titleInput) throw new Error("제목 입력 필드를 찾을 수 없습니다.");
 
-    // 제목 입력
     titleInput.value = title;
     titleInput.dispatchEvent(new Event("input", { bubbles: true }));
     titleInput.dispatchEvent(new Event("change", { bubbles: true }));
-    await sleep(500);
+    await sleep(300);
 
-    // // tinymce 인스턴스 (에디터)
-    // TinyMCE 인스턴스 목록을 확인 : window.tinymce.editors(console 입력)
-    // const editorInstance = window.tinymce && window.tinymce.get('editor-tistory');
-    // const editorInstance = window.tinymce && window.tinymce.get('.Editor-inner');
-    // if (!editorInstance) throw new Error("본문 입력 영역(tinymce 에디터)을 찾을 수 없습니다.");
+    // 본문 입력 필드
+    const editorIframe = await waitFor('#editor-tistory_ifr', 8000).catch(() => null);
+    if (!editorIframe) throw new Error("에디터 iframe(#editor-tistory_ifr)을 찾을 수 없습니다.");
 
-    // // 본문 입력 (기존 내용을 덮어씀)
-    // const currentContent = editorInstance.getContent() || "";
-    // editorInstance.setContent(currentContent + bodyHtml);
-    // editorInstance.fire("change");
-    // await sleep(500);
+    const iframeDoc = editorIframe.contentDocument || editorIframe.contentWindow.document;
+    if (!iframeDoc && !iframeDoc.body) throw new Error("에디터 iframe 문서를 읽을 수 없습니다.");
+
+    iframeDoc.body.innerHTML += bodyHtml;
+    await sleep(300);
 
     /*********************
      * 3. 발행 레이어 열기
      *********************/
-    console.log("[Tistory Auto Poster] 발행 레이어를 여는 버튼을 찾는 중...");
-
     const completeBtn = document.querySelector("button#publish-layer-btn");
-    if (!completeBtn) {
-      throw new Error("발행 레이어 호출 버튼(publish-layer-btn)을 찾을 수 없습니다.");
-    }
+    if (!completeBtn) throw new Error("발행 레이어 호출 버튼(publish-layer-btn)을 찾을 수 없습니다.");
     completeBtn.click();
+    await sleep(500);
 
     /*********************
      * 4. 공개 라디오 + 발행 버튼 클릭
      *********************/
-    console.log("[Tistory Auto Poster] 공개 설정 및 발행 버튼을 찾는 중...");
-
     const openRadio = await waitFor("input#open20", 3000).catch(() => null);
-    const published = document.querySelector("button#publish-btn");
-
-    if (!openRadio) {
-      throw new Error("공개 버튼(input#open20)을 찾을 수 없습니다.");
-    }
-    if (!published) {
-      throw new Error("발행/등록 버튼(button#publish-btn)을 찾을 수 없습니다.");
-    }
-
+    if (!openRadio) throw new Error("공개 버튼(input#open20)을 찾을 수 없습니다.");
     openRadio.click();
     await sleep(200);
 
+    const published = document.querySelector("button#publish-btn");
+    if (!published) throw new Error("발행/등록 버튼(button#publish-btn)을 찾을 수 없습니다.");
     published.click();
-    console.log("[Tistory Auto Poster] 발행 버튼 클릭 완료. 서버 응답 대기...");
+    await sleep(200);
 
+    console.log("[Tistory Auto Poster] 발행 버튼 클릭 완료. 서버 응답 대기...");
     await sleep(3000);
 
     /*********************
@@ -321,10 +226,12 @@ async function runPostingForFile(fileIndex, file) {
     });
 
      console.log("[Tistory Auto Poster] FILE_POSTED 전송 완료. fileIndex =", fileIndex);
+    window.close();
   } catch (err) {
     console.error("[Tistory Auto Poster] runPostingForFile Error:", err);
     sendError(err);
   }
+
 }
 
 /*************************
